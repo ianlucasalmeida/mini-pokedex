@@ -4,11 +4,11 @@ import {
   View,
   Text,
   FlatList,
-  Button,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -61,25 +61,15 @@ const HomeScreen = () => {
     try {
       const data = await fetchPokemonByName(query);
       navigation.navigate('Detail', { pokemon: data });
-      setSearchQuery(''); // Limpa a busca após o sucesso
+      setSearchQuery('');
     } catch (e: any) {
       setError(e.message || 'Erro na busca.');
-      setPokemonList([]); // Limpa a lista em caso de erro na busca
+      setPokemonList([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderItem = ({ item }: { item: PokemonListItem }) => (
-    <TouchableOpacity
-      style={styles.itemContainer}
-      onPress={() => handleSearchByName(item.name)}
-    >
-      <Text style={styles.itemText}>{item.name}</Text>
-    </TouchableOpacity>
-  );
-
-  // Helper para navegar ao clicar no item da lista
   const handleSearchByName = async (name: string) => {
     setLoading(true);
     setError(null);
@@ -93,17 +83,71 @@ const HomeScreen = () => {
     }
   };
 
+  const getPokemonId = (url: string) => {
+    const id = url.split('/').filter(Boolean).pop();
+    return id ? String(id).padStart(3, '0') : '???';
+  };
+
+  const renderItem = ({ item }: { item: PokemonListItem }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => handleSearchByName(item.name)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.cardContent}>
+        <View style={styles.pokemonInfo}>
+          <Text style={styles.pokemonId}>#{getPokemonId(item.url)}</Text>
+          <Text style={styles.pokemonName}>{item.name}</Text>
+        </View>
+        <View style={styles.arrowContainer}>
+          <Text style={styles.arrow}>›</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Buscar por nome (ex: pikachu)"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-        />
-        <Button title="Buscar" onPress={handleSearch} />
+      <StatusBar barStyle="light-content" backgroundColor="#EF5350" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Pokédex</Text>
+        <Text style={styles.headerSubtitle}>Busque e descubra Pokémons</Text>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchContainer}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Buscar Pokémon..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('');
+                loadPokemon(0);
+              }}
+              style={styles.clearButton}
+            >
+              <Text style={styles.clearButtonText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {searchQuery.length > 0 && (
+          <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+            <Text style={styles.searchButtonText}>Buscar</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <LoadingError
@@ -118,20 +162,43 @@ const HomeScreen = () => {
           renderItem={renderItem}
           keyExtractor={(item) => item.name}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Nenhum Pokémon encontrado.</Text>
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyEmoji}>🔍</Text>
+              <Text style={styles.emptyText}>Nenhum Pokémon encontrado</Text>
+              <Text style={styles.emptySubtext}>Tente buscar por outro nome</Text>
+            </View>
           }
         />
       )}
 
       {!searchQuery && !loading && !error && pokemonList.length > 0 && (
-        <View style={styles.pagination}>
-          <Button
-            title="Anterior"
+        <View style={styles.paginationContainer}>
+          <TouchableOpacity
+            style={[styles.paginationButton, offset === 0 && styles.paginationButtonDisabled]}
             onPress={() => loadPokemon(Math.max(0, offset - 20))}
             disabled={offset === 0}
-          />
-          <Button title="Próxima" onPress={() => loadPokemon(offset + 20)} />
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.paginationButtonText, offset === 0 && styles.paginationButtonTextDisabled]}>
+              ← Anterior
+            </Text>
+          </TouchableOpacity>
+          
+          <View style={styles.pageIndicator}>
+            <Text style={styles.pageIndicatorText}>
+              {Math.floor(offset / 20) + 1}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.paginationButton}
+            onPress={() => loadPokemon(offset + 20)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.paginationButtonText}>Próxima →</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -139,43 +206,189 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f0f0' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    backgroundColor: '#EF5350',
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    paddingTop: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  searchSection: {
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   searchContainer: {
     flexDirection: 'row',
-    padding: 10,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderColor: '#ddd',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    height: 50,
+  },
+  searchIcon: {
+    fontSize: 18,
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    marginRight: 10,
+    fontSize: 16,
+    color: '#333',
   },
-  list: { paddingBottom: 20 },
-  itemContainer: {
+  clearButton: {
+    padding: 5,
+  },
+  clearButtonText: {
+    fontSize: 18,
+    color: '#999',
+  },
+  searchButton: {
+    backgroundColor: '#EF5350',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  searchButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  list: {
+    padding: 15,
+    paddingBottom: 20,
+  },
+  card: {
     backgroundColor: 'white',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
+    borderRadius: 15,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  itemText: { fontSize: 18, textTransform: 'capitalize' },
-  pagination: {
+  cardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 18,
+  },
+  pokemonInfo: {
+    flex: 1,
+  },
+  pokemonId: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  pokemonName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    textTransform: 'capitalize',
+  },
+  arrowContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  arrow: {
+    fontSize: 20,
+    color: '#999',
+    fontWeight: 'bold',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
     backgroundColor: 'white',
     borderTopWidth: 1,
-    borderColor: '#ddd',
+    borderTopColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  paginationButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF5350',
+    minWidth: 120,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#e0e0e0',
+  },
+  paginationButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  paginationButtonTextDisabled: {
+    color: '#999',
+  },
+  pageIndicator: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pageIndicatorText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 20,
   },
   emptyText: {
-    textAlign: 'center',
-    marginTop: 50,
-    fontSize: 16,
-    color: 'gray',
+    fontSize: 18,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
   },
 });
 
